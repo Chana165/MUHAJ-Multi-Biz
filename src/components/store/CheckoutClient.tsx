@@ -89,6 +89,7 @@ export default function CheckoutClient({
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(readCart());
     setLoaded(true);
   }, []);
@@ -532,7 +533,7 @@ export default function CheckoutClient({
             href="/cart"
             className="text-center text-sm font-bold text-slate-500 transition hover:text-[#061a3a]"
           >
-            ← Back to Cart
+            â† Back to Cart
           </Link>
 
           <button

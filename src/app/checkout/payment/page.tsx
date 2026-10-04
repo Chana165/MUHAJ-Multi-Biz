@@ -86,6 +86,7 @@ function PaymentPageContent() {
 
   useEffect(() => {
     if (!returned) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadOrder();
     }
   }, [loadOrder, returned]);
