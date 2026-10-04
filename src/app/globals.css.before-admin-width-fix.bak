@@ -89,36 +89,3 @@ textarea {
   border-collapse: separate;
   border-spacing: 0;
 }
-
-/* ============================================================
-   MUHAJ ADMIN MODULE WIDTH SYSTEM
-
-   Horizontal spacing only.
-   Does NOT modify vertical spacing.
-   Dashboard is not affected because it does not use
-   .admin-module-page.
-   ============================================================ */
-
-.admin-module-page {
-  width: calc(100% - 24px);
-  max-width: 1440px;
-  margin-inline: auto;
-}
-
-@media (min-width: 640px) {
-  .admin-module-page {
-    width: calc(100% - 48px);
-  }
-}
-
-@media (min-width: 1024px) {
-  .admin-module-page {
-    width: calc(100% - 64px);
-  }
-}
-
-@media (min-width: 1536px) {
-  .admin-module-page {
-    width: 1440px;
-  }
-}

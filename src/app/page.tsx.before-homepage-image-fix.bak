@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/server";
@@ -220,7 +221,7 @@ export default async function HomePage() {
       ====================================================== */}
 
       <div className="bg-[#071a3a] px-4 py-2 text-center text-xs font-semibold tracking-wide text-white">
-        Nationwide Delivery Available â€¢ Shop MUHAJ Multi Biz
+        Nationwide Delivery Available • Shop MUHAJ Multi Biz
       </div>
 
       {/* ======================================================
@@ -236,7 +237,13 @@ export default async function HomePage() {
           >
             {logoUrl ? (
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <img src={logoUrl} alt={storeName} className="h-full w-full object-contain p-1" />
+                <Image
+                  src={logoUrl}
+                  alt={storeName}
+                  fill
+                  className="object-contain p-1"
+                  sizes="48px"
+                />
               </div>
             ) : (
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#d4af37] bg-[#071a3a] text-xl font-black text-[#d4af37]">
@@ -269,12 +276,6 @@ export default async function HomePage() {
             >
               Shop
             </Link>
-                <Link
-                  href="/track-order"
-                  className="font-semibold text-[#071a3a] transition hover:text-[#b28b16]"
-                >
-                  Track Order
-                </Link>
 
             <a
               href="#categories"
@@ -330,12 +331,6 @@ export default async function HomePage() {
             >
               Shop
             </Link>
-                <Link
-                  href="/track-order"
-                  className="font-semibold text-[#071a3a] transition hover:text-[#b28b16]"
-                >
-                  Track Order
-                </Link>
 
             <a
               href="#categories"
@@ -415,7 +410,13 @@ export default async function HomePage() {
             <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 shadow-2xl">
               <div className="relative aspect-[4/3] w-full">
                 {bannerImage ? (
-                  <img src={bannerImage} alt={bannerTitle} className="h-full w-full object-cover" />
+                  <Image
+                    src={bannerImage}
+                    alt={bannerTitle}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 45vw"
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#102b58] to-[#071a3a]">
                     <div className="text-center">
@@ -463,7 +464,7 @@ export default async function HomePage() {
             href="/shop"
             className="text-sm font-bold text-[#071a3a] hover:text-[#b28b16]"
           >
-            View All Products â†’
+            View All Products →
           </Link>
         </div>
 
@@ -494,7 +495,7 @@ export default async function HomePage() {
                 </p>
 
                 <span className="mt-5 block text-xs font-bold text-[#b28b16] transition group-hover:translate-x-1">
-                  Shop Category â†’
+                  Shop Category →
                 </span>
               </Link>
             ))}
@@ -530,7 +531,7 @@ export default async function HomePage() {
               href="/shop"
               className="text-sm font-bold text-[#071a3a] hover:text-[#b28b16]"
             >
-              Browse Shop â†’
+              Browse Shop →
             </Link>
           </div>
 
@@ -578,7 +579,13 @@ export default async function HomePage() {
                       className="relative block aspect-square overflow-hidden bg-slate-100"
                     >
                       {image ? (
-                        <img src={image} alt={product.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                        <Image
+                          src={image}
+                          alt={product.name}
+                          fill
+                          className="object-cover transition duration-500 group-hover:scale-105"
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        />
                       ) : (
                         <div className="flex h-full items-center justify-center bg-[#071a3a]">
                           <span className="text-4xl font-black text-[#d4af37]">
@@ -682,7 +689,13 @@ export default async function HomePage() {
             <div className="flex aspect-[4/3] items-center justify-center">
               {logoUrl ? (
                 <div className="relative h-40 w-40 overflow-hidden rounded-3xl bg-white p-4">
-                  <img src={logoUrl} alt={storeName} className="object-contain p-4" />
+                  <Image
+                    src={logoUrl}
+                    alt={storeName}
+                    fill
+                    className="object-contain p-4"
+                    sizes="160px"
+                  />
                 </div>
               ) : (
                 <div className="text-center">
@@ -828,7 +841,13 @@ export default async function HomePage() {
               <div className="flex items-center gap-3">
                 {logoUrl ? (
                   <div className="relative h-11 w-11 overflow-hidden rounded-xl bg-white">
-                    <img src={logoUrl} alt={storeName} className="h-full w-full object-contain p-1" />
+                    <Image
+                      src={logoUrl}
+                      alt={storeName}
+                      fill
+                      className="object-contain p-1"
+                      sizes="44px"
+                    />
                   </div>
                 ) : (
                   <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-[#d4af37] text-lg font-black text-[#d4af37]">
@@ -870,12 +889,6 @@ export default async function HomePage() {
                   className="hover:text-white"
                 >
                   Shop
-                </Link>
-                <Link
-                  href="/track-order"
-                  className="font-semibold text-[#071a3a] transition hover:text-[#b28b16]"
-                >
-                  Track Order
                 </Link>
 
                 <Link
@@ -927,7 +940,7 @@ export default async function HomePage() {
           </div>
 
           <div className="mt-10 border-t border-white/10 pt-6 text-center text-xs text-blue-100/40">
-            Â© {new Date().getFullYear()} {storeName}. All rights reserved.
+            © {new Date().getFullYear()} {storeName}. All rights reserved.
           </div>
         </div>
       </footer>

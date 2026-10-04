@@ -1,0 +1,620 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CheckoutCartItem,
+  saveCheckoutData,
+} from "@/lib/store/checkout-storage";
+
+type ShippingMethod = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  estimated_delivery: string | null;
+};
+
+type CheckoutForm = {
+  full_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  state: string;
+  notes: string;
+};
+
+const emptyForm: CheckoutForm = {
+  full_name: "",
+  phone: "",
+  email: "",
+  address: "",
+  city: "",
+  state: "",
+  notes: "",
+};
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function readCart(): CheckoutCartItem[] {
+  try {
+    const raw = window.localStorage.getItem("muhaj-cart");
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(
+      (item): item is CheckoutCartItem =>
+        item &&
+        typeof item.id === "string" &&
+        typeof item.name === "string" &&
+        typeof item.slug === "string" &&
+        typeof item.price === "number" &&
+        typeof item.quantity === "number"
+    );
+  } catch {
+    return [];
+  }
+}
+
+export default function CheckoutClient({
+  shippingMethods,
+}: {
+  shippingMethods: ShippingMethod[];
+}) {
+  const router = useRouter();
+
+  const [items, setItems] = useState<CheckoutCartItem[]>([]);
+  const [form, setForm] = useState<CheckoutForm>(emptyForm);
+  const [selectedShippingId, setSelectedShippingId] = useState(
+    shippingMethods[0]?.id ?? ""
+  );
+  const [loaded, setLoaded] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setItems(readCart());
+    setLoaded(true);
+  }, []);
+
+  const selectedShipping =
+    shippingMethods.find(
+      (method) => method.id === selectedShippingId
+    ) ??
+    shippingMethods[0] ??
+    null;
+
+  const subtotal = useMemo(
+    () =>
+      items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      ),
+    [items]
+  );
+
+  const shippingFee = selectedShipping?.price ?? 0;
+  const total = subtotal + shippingFee;
+
+  const updateField = (
+    field: keyof CheckoutForm,
+    value: string
+  ) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+    if (error) {
+      setError("");
+    }
+  };
+
+  const continueToReview = (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    if (submitting) {
+      return;
+    }
+
+    setError("");
+
+    if (items.length === 0) {
+      setError(
+        "Your cart is empty. Please add a product before checkout."
+      );
+      return;
+    }
+
+    if (!form.full_name.trim()) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    if (!form.phone.trim()) {
+      setError("Please enter your phone number.");
+      return;
+    }
+
+    if (!form.email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    if (!form.address.trim()) {
+      setError("Please enter your delivery address.");
+      return;
+    }
+
+    if (!form.city.trim()) {
+      setError("Please enter your delivery city.");
+      return;
+    }
+
+    if (!form.state.trim()) {
+      setError("Please enter your delivery state.");
+      return;
+    }
+
+    if (!selectedShipping) {
+      setError("Please select a delivery method.");
+      return;
+    }
+
+    const checkoutData = {
+      customer: {
+        full_name: form.full_name.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim().toLowerCase(),
+        address: form.address.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        notes: form.notes.trim(),
+      },
+      shipping_method_id: selectedShipping.id,
+      shipping_method_name: selectedShipping.name,
+      shipping_fee: shippingFee,
+      subtotal,
+      total,
+      items,
+    };
+
+    try {
+      saveCheckoutData(checkoutData);
+    } catch {
+      setError(
+        "We could not save your checkout information. Please try again."
+      );
+      return;
+    }
+
+    setSubmitting(true);
+
+    // Use a full navigation after saving both storage copies.
+    // This avoids the previous client-route handoff problem.
+    window.setTimeout(() => {
+      router.push("/checkout/review");
+    }, 50);
+  };
+
+  if (!loaded) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <div className="mx-auto h-8 w-8 animate-pulse rounded-full bg-slate-200" />
+        <p className="mt-4 text-sm text-slate-500">
+          Preparing checkout...
+        </p>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-100 text-4xl font-black text-slate-300">
+          M
+        </div>
+
+        <h2 className="mt-6 text-2xl font-black text-[#061a3a]">
+          Your cart is empty
+        </h2>
+
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
+          Add a product to your cart before proceeding to checkout.
+        </p>
+
+        <Link
+          href="/shop"
+          className="mt-7 inline-flex rounded-xl bg-[#061a3a] px-6 py-3.5 text-sm font-extrabold text-white transition hover:bg-[#0a2858]"
+        >
+          Start Shopping
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={continueToReview}
+      className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]"
+    >
+      <div className="space-y-6">
+        {/* Customer */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-6">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b78927]">
+              STEP 1
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-[#061a3a]">
+              Customer Information
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Enter the details we need to contact you about your order.
+            </p>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="full_name"
+                className="mb-2 block text-sm font-bold text-slate-700"
+              >
+                Full Name <span className="text-red-500">*</span>
+              </label>
+
+              <input
+                id="full_name"
+                type="text"
+                value={form.full_name}
+                onChange={(event) =>
+                  updateField("full_name", event.target.value)
+                }
+                placeholder="Enter your full name"
+                autoComplete="name"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="phone"
+                className="mb-2 block text-sm font-bold text-slate-700"
+              >
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+
+              <input
+                id="phone"
+                type="tel"
+                value={form.phone}
+                onChange={(event) =>
+                  updateField("phone", event.target.value)
+                }
+                placeholder="e.g. 08012345678"
+                autoComplete="tel"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-2 block text-sm font-bold text-slate-700"
+              >
+                Email Address <span className="text-red-500">*</span>
+              </label>
+
+              <input
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(event) =>
+                  updateField("email", event.target.value)
+                }
+                placeholder="you@example.com"
+                autoComplete="email"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Delivery address */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-6">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b78927]">
+              STEP 2
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-[#061a3a]">
+              Delivery Address
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Tell us where you want your order delivered.
+            </p>
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <label
+                htmlFor="address"
+                className="mb-2 block text-sm font-bold text-slate-700"
+              >
+                Delivery Address <span className="text-red-500">*</span>
+              </label>
+
+              <textarea
+                id="address"
+                rows={3}
+                value={form.address}
+                onChange={(event) =>
+                  updateField("address", event.target.value)
+                }
+                placeholder="House number, street, area..."
+                autoComplete="street-address"
+                className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+              />
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="city"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
+                  City <span className="text-red-500">*</span>
+                </label>
+
+                <input
+                  id="city"
+                  type="text"
+                  value={form.city}
+                  onChange={(event) =>
+                    updateField("city", event.target.value)
+                  }
+                  placeholder="e.g. Bauchi"
+                  autoComplete="address-level2"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="state"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
+                  State <span className="text-red-500">*</span>
+                </label>
+
+                <input
+                  id="state"
+                  type="text"
+                  value={form.state}
+                  onChange={(event) =>
+                    updateField("state", event.target.value)
+                  }
+                  placeholder="e.g. Bauchi"
+                  autoComplete="address-level1"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="notes"
+                className="mb-2 block text-sm font-bold text-slate-700"
+              >
+                Order Notes{" "}
+                <span className="font-normal text-slate-400">
+                  (optional)
+                </span>
+              </label>
+
+              <textarea
+                id="notes"
+                rows={3}
+                value={form.notes}
+                onChange={(event) =>
+                  updateField("notes", event.target.value)
+                }
+                placeholder="Any special delivery instructions..."
+                className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Shipping */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-6">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b78927]">
+              STEP 3
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-[#061a3a]">
+              Delivery Method
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Choose how your order should be delivered.
+            </p>
+          </div>
+
+          {shippingMethods.length === 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+              No delivery method is currently available. Please contact MUHAJ
+              Multi Biz before placing your order.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {shippingMethods.map((method) => (
+                <label
+                  key={method.id}
+                  className={`flex cursor-pointer items-start gap-4 rounded-xl border p-4 transition ${
+                    selectedShippingId === method.id
+                      ? "border-[#061a3a] bg-slate-50 ring-2 ring-[#061a3a]/10"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="shipping_method"
+                    value={method.id}
+                    checked={selectedShippingId === method.id}
+                    onChange={() => {
+                      setSelectedShippingId(method.id);
+                      setError("");
+                    }}
+                    className="mt-1 h-4 w-4 accent-[#061a3a]"
+                  />
+
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="text-sm font-extrabold text-[#061a3a]">
+                        {method.name}
+                      </span>
+
+                      <span className="text-sm font-black text-[#061a3a]">
+                        {method.price === 0
+                          ? "Free"
+                          : formatPrice(method.price)}
+                      </span>
+                    </span>
+
+                    {method.description && (
+                      <span className="mt-1 block text-sm text-slate-500">
+                        {method.description}
+                      </span>
+                    )}
+
+                    {method.estimated_delivery && (
+                      <span className="mt-1 block text-xs font-semibold text-slate-400">
+                        Estimated delivery: {method.estimated_delivery}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Link
+            href="/cart"
+            className="text-center text-sm font-bold text-slate-500 transition hover:text-[#061a3a]"
+          >
+            ← Back to Cart
+          </Link>
+
+          <button
+            type="submit"
+            disabled={shippingMethods.length === 0 || submitting}
+            className="rounded-xl bg-[#061a3a] px-7 py-3.5 text-sm font-extrabold text-white transition hover:bg-[#0a2858] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting
+              ? "Opening Order Review..."
+              : "Continue to Order Review"}
+          </button>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-28">
+        <h2 className="text-lg font-black text-[#061a3a]">
+          Order Summary
+        </h2>
+
+        <div className="mt-5 space-y-4">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center gap-3">
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                {item.image_url ? (
+                  <img
+                    src={item.image_url}
+                    alt={item.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-lg font-black text-slate-300">
+                    M
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="line-clamp-2 text-sm font-bold text-[#061a3a]">
+                  {item.name}
+                </div>
+
+                <div className="mt-1 text-xs text-slate-500">
+                  Qty: {item.quantity}
+                </div>
+              </div>
+
+              <div className="shrink-0 text-sm font-extrabold text-[#061a3a]">
+                {formatPrice(item.price * item.quantity)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 space-y-3 border-t border-slate-200 pt-5">
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-slate-500">Subtotal</span>
+
+            <span className="font-bold text-slate-900">
+              {formatPrice(subtotal)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-slate-500">Delivery</span>
+
+            <span className="font-bold text-slate-900">
+              {shippingFee === 0 ? "Free" : formatPrice(shippingFee)}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-end justify-between gap-4 border-t border-slate-200 pt-5">
+          <span className="text-base font-bold text-slate-600">
+            Total
+          </span>
+
+          <span className="text-2xl font-black text-[#061a3a]">
+            {formatPrice(total)}
+          </span>
+        </div>
+      </aside>
+    </form>
+  );
+}

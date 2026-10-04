@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --muhaj-navy: #061a3a;
+  --muhaj-navy-dark: #031229;
+  --muhaj-navy-soft: #0b2855;
+  --muhaj-gold: #d4af37;
+  --muhaj-gold-dark: #a98216;
+  --muhaj-gold-light: #f0d878;
+  --muhaj-cream: #f8f3e7;
+  --muhaj-white: #ffffff;
+  --muhaj-text: #172033;
+  --muhaj-muted: #667085;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--muhaj-cream);
+  color: var(--muhaj-text);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--muhaj-gold);
+  color: var(--muhaj-navy-dark);
+}

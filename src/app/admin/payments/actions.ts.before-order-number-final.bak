@@ -1,0 +1,338 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
+import { revalidatePath } from "next/cache";
+
+type Row = Record<string, unknown>;
+
+function value(row: Row, keys: string[]) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && row[key] !== "") {
+      return row[key];
+    }
+  }
+  return null;
+}
+
+function getSupabaseConfig() {
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    process.env.SUPABASE_URL;
+
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !key) {
+    throw new Error(
+      "Supabase environment variables are missing. Check .env.local."
+    );
+  }
+
+  return { url, key };
+}
+
+async function getSupabase() {
+  const cookieStore = await cookies();
+  const { url, key } = getSupabaseConfig();
+
+  return createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        } catch {}
+      },
+    },
+  });
+}
+
+export type Payment = {
+  id: string;
+  orderId: string | null;
+  customerId: string | null;
+  customerName: string;
+  customerEmail: string;
+  amount: number;
+  status: string;
+  reference: string;
+  method: string;
+  createdAt: string | null;
+};
+
+function getCustomerName(profile?: Row) {
+  if (!profile) return "Guest Customer";
+
+  const fullName = value(profile, [
+    "full_name",
+    "name",
+    "display_name",
+    "username",
+  ]);
+
+  if (fullName) return String(fullName);
+
+  const first = value(profile, ["first_name", "firstname"]);
+  const last = value(profile, ["last_name", "lastname"]);
+
+  const combined = [first, last]
+    .filter(Boolean)
+    .map(String)
+    .join(" ")
+    .trim();
+
+  return combined || "Customer";
+}
+
+export async function getPayments() {
+  try {
+    const db = await getSupabase();
+
+    const [
+      { data: payments, error },
+      { data: orders },
+      { data: profiles },
+    ] = await Promise.all([
+      db
+        .from("payments")
+        .select("*")
+        .order("created_at", { ascending: false }),
+
+      db.from("orders").select("*"),
+
+      db.from("profiles").select("*"),
+    ]);
+
+    if (error) {
+      return {
+        success: false,
+        payments: [],
+        error: error.message,
+      };
+    }
+
+    const orderMap = new Map<string, Row>();
+
+    for (const row of orders ?? []) {
+      const item = row as Row;
+      const id = value(item, ["id", "order_id"]);
+
+      if (id) {
+        orderMap.set(String(id), item);
+      }
+    }
+
+    const profileMap = new Map<string, Row>();
+
+    for (const row of profiles ?? []) {
+      const item = row as Row;
+      const id = value(item, [
+        "id",
+        "user_id",
+        "profile_id",
+      ]);
+
+      if (id) {
+        profileMap.set(String(id), item);
+      }
+    }
+
+    const result: Payment[] = (payments ?? []).map((row) => {
+      const payment = row as Row;
+
+      const id = String(
+        value(payment, ["id", "payment_id"]) ??
+          crypto.randomUUID()
+      );
+
+      const rawOrderId = value(payment, [
+        "order_id",
+        "orderId",
+      ]);
+
+      const orderId = rawOrderId
+        ? String(rawOrderId)
+        : null;
+
+      const order = orderId
+        ? orderMap.get(orderId)
+        : undefined;
+
+      const rawCustomerId =
+        value(payment, [
+          "user_id",
+          "customer_id",
+          "profile_id",
+          "userId",
+          "customerId",
+        ]) ??
+        (order
+          ? value(order, [
+              "user_id",
+              "customer_id",
+              "profile_id",
+            ])
+          : null);
+
+      const customerId = rawCustomerId
+        ? String(rawCustomerId)
+        : null;
+
+      const profile = customerId
+        ? profileMap.get(customerId)
+        : undefined;
+
+      const rawAmount =
+        value(payment, [
+          "amount",
+          "total",
+          "paid_amount",
+        ]) ??
+        (order
+          ? value(order, [
+              "total",
+              "total_amount",
+              "amount",
+              "grand_total",
+            ])
+          : 0);
+
+      const amount =
+        Number(
+          String(rawAmount ?? "0").replace(/,/g, "")
+        ) || 0;
+
+      const status = String(
+        value(payment, [
+          "status",
+          "payment_status",
+        ]) ?? "pending"
+      ).toLowerCase();
+
+      const reference = String(
+        value(payment, [
+          "reference",
+          "payment_reference",
+          "transaction_reference",
+          "transaction_id",
+          "tx_ref",
+          "paystack_reference",
+        ]) ?? id
+      );
+
+      const method = String(
+        value(payment, [
+          "method",
+          "payment_method",
+          "channel",
+        ]) ?? "Not specified"
+      );
+
+      const created = value(payment, [
+        "created_at",
+        "createdAt",
+        "paid_at",
+      ]);
+
+      const email = String(
+        value(profile ?? {}, [
+          "email",
+          "email_address",
+        ]) ??
+          value(payment, [
+            "email",
+            "customer_email",
+          ]) ??
+          value(order ?? {}, [
+            "email",
+            "customer_email",
+          ]) ??
+          "—"
+      );
+
+      return {
+        id,
+        orderId,
+        customerId,
+        customerName: getCustomerName(profile),
+        customerEmail: email,
+        amount,
+        status,
+        reference,
+        method,
+        createdAt: created
+          ? String(created)
+          : null,
+      };
+    });
+
+    return {
+      success: true,
+      payments: result,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      payments: [],
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to load payments.",
+    };
+  }
+}
+
+export async function updatePaymentStatus(
+  id: string,
+  status: string
+) {
+  const allowedStatuses = [
+    "pending",
+    "paid",
+    "failed",
+    "refunded",
+  ];
+
+  if (!allowedStatuses.includes(status)) {
+    return {
+      success: false,
+      error: "Invalid payment status.",
+    };
+  }
+
+  try {
+    const db = await getSupabase();
+
+    const { error } = await db
+      .from("payments")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    revalidatePath("/admin/payments");
+    revalidatePath("/admin/orders");
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to update payment.",
+    };
+  }
+}

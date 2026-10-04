@@ -1,0 +1,943 @@
+"use client";
+
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  CreditCard,
+  Eye,
+  Package,
+  Search,
+  Truck,
+  X,
+} from "lucide-react";
+
+import {
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
+
+import { updateOrderStatus } from "./actions";
+
+type Customer = {
+  id: string;
+  [key: string]: unknown;
+};
+
+type Product = {
+  id: string;
+  [key: string]: unknown;
+};
+
+type OrderItem = {
+  id: string;
+  orderId: string;
+  productId: string | null;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  [key: string]: unknown;
+};
+
+type Payment = {
+  orderId: string;
+  status: string;
+  amount: number;
+  [key: string]: unknown;
+};
+
+export type AdminOrder = {
+  id: string;
+  customerId: string | null;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  status: string;
+  paymentStatus: string;
+  total: number;
+  subtotal: number;
+  shippingAddress: string;
+  createdAt: string;
+  items: OrderItem[];
+  payment: Payment | null;
+  raw: Record<string, unknown>;
+};
+
+type Props = {
+  initialOrders: AdminOrder[];
+};
+
+type OrderFilter =
+  | "all"
+  | "pending"
+  | "confirmed"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  processing: "Processing",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
+const STATUS_OPTIONS = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+];
+
+function money(value: number) {
+  return `₦${Number(value || 0).toLocaleString("en-NG", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function dateText(value: string) {
+  try {
+    return new Intl.DateTimeFormat("en-NG", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function shortOrderId(id: string) {
+  if (!id) {
+    return "—";
+  }
+
+  return `#${id.slice(0, 8).toUpperCase()}`;
+}
+
+function statusLabel(status: string) {
+  return (
+    STATUS_LABELS[status.toLowerCase()] ??
+    status.replace(/_/g, " ")
+  );
+}
+
+function statusClass(status: string) {
+  switch (status.toLowerCase()) {
+    case "pending":
+      return "bg-amber-50 text-amber-700";
+    case "confirmed":
+      return "bg-blue-50 text-blue-700";
+    case "processing":
+      return "bg-violet-50 text-violet-700";
+    case "shipped":
+      return "bg-indigo-50 text-indigo-700";
+    case "delivered":
+      return "bg-emerald-50 text-emerald-700";
+    case "cancelled":
+      return "bg-red-50 text-red-700";
+    default:
+      return "bg-slate-100 text-slate-600";
+  }
+}
+
+function paymentClass(status: string) {
+  switch (status.toLowerCase()) {
+    case "paid":
+    case "success":
+    case "successful":
+      return "bg-emerald-50 text-emerald-700";
+    case "failed":
+      return "bg-red-50 text-red-700";
+    case "refunded":
+      return "bg-violet-50 text-violet-700";
+    default:
+      return "bg-amber-50 text-amber-700";
+  }
+}
+
+function paymentLabel(status: string) {
+  const normalized = status.toLowerCase();
+
+  if (
+    normalized === "success" ||
+    normalized === "successful"
+  ) {
+    return "Paid";
+  }
+
+  if (!normalized) {
+    return "Pending";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+export default function OrderManager({
+  initialOrders,
+}: Props) {
+  const [orders, setOrders] =
+    useState<AdminOrder[]>(initialOrders);
+
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] =
+    useState<OrderFilter>("all");
+
+  const [selectedOrder, setSelectedOrder] =
+    useState<AdminOrder | null>(null);
+
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const [isPending, startTransition] = useTransition();
+
+  const counts = useMemo(() => {
+    return {
+      total: orders.length,
+      pending: orders.filter(
+        (order) => order.status === "pending"
+      ).length,
+      processing: orders.filter(
+        (order) => order.status === "processing"
+      ).length,
+      delivered: orders.filter(
+        (order) => order.status === "delivered"
+      ).length,
+    };
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      const matchesStatus =
+        filter === "all" ||
+        order.status.toLowerCase() === filter;
+
+      const searchable = [
+        order.id,
+        order.customerName,
+        order.customerEmail,
+        order.customerPhone,
+        order.status,
+        order.paymentStatus,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        matchesStatus &&
+        (!query || searchable.includes(query))
+      );
+    });
+  }, [orders, search, filter]);
+
+  function showMessage(
+    type: "success" | "error",
+    text: string
+  ) {
+    setMessage({ type, text });
+
+    window.setTimeout(() => {
+      setMessage(null);
+    }, 4000);
+  }
+
+  function handleStatusChange(
+    order: AdminOrder,
+    status: string
+  ) {
+    startTransition(async () => {
+      const result = await updateOrderStatus(
+        order.id,
+        status
+      );
+
+      if (result.ok) {
+        setOrders((current) =>
+          current.map((item) =>
+            item.id === order.id
+              ? {
+                  ...item,
+                  status,
+                }
+              : item
+          )
+        );
+
+        setSelectedOrder((current) =>
+          current?.id === order.id
+            ? {
+                ...current,
+                status,
+              }
+            : current
+        );
+      }
+
+      showMessage(
+        result.ok ? "success" : "error",
+        result.message
+      );
+    });
+  }
+
+  return (
+    <div className="admin-module-page space-y-6">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#071a3a] text-[#d4af37]">
+            <Package className="h-5 w-5" />
+          </div>
+
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b28b16]">
+              Sales
+            </p>
+
+            <h1 className="text-2xl font-black tracking-tight text-[#071a3a] sm:text-3xl">
+              Orders
+            </h1>
+          </div>
+        </div>
+
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+          View customer orders, check payment status and
+          move orders through the simple fulfillment process.
+        </p>
+      </div>
+
+      {/* Feedback */}
+      {message && (
+        <div
+          className={`flex items-start gap-3 rounded-2xl border px-4 py-4 text-sm ${
+            message.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          {message.type === "success" ? (
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+          ) : (
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          )}
+
+          <p className="flex-1 font-medium">
+            {message.text}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setMessage(null)}
+            className="rounded-lg p-1 hover:bg-black/5"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Summary */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => setFilter("all")}
+          className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition ${
+            filter === "all"
+              ? "border-[#d4af37] ring-2 ring-[#d4af37]/15"
+              : "border-slate-200 hover:border-slate-300"
+          }`}
+        >
+          <p className="text-sm font-medium text-slate-500">
+            Total Orders
+          </p>
+
+          <p className="mt-2 text-3xl font-black text-[#071a3a]">
+            {counts.total}
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter("pending")}
+          className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition ${
+            filter === "pending"
+              ? "border-amber-300 ring-2 ring-amber-100"
+              : "border-slate-200 hover:border-slate-300"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">
+                Pending
+              </p>
+
+              <p className="mt-2 text-3xl font-black text-amber-600">
+                {counts.pending}
+              </p>
+            </div>
+
+            <Clock3 className="h-5 w-5 text-amber-500" />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter("processing")}
+          className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition ${
+            filter === "processing"
+              ? "border-violet-300 ring-2 ring-violet-100"
+              : "border-slate-200 hover:border-slate-300"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">
+                Processing
+              </p>
+
+              <p className="mt-2 text-3xl font-black text-violet-700">
+                {counts.processing}
+              </p>
+            </div>
+
+            <Package className="h-5 w-5 text-violet-600" />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter("delivered")}
+          className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition ${
+            filter === "delivered"
+              ? "border-emerald-300 ring-2 ring-emerald-100"
+              : "border-slate-200 hover:border-slate-300"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">
+                Delivered
+              </p>
+
+              <p className="mt-2 text-3xl font-black text-emerald-700">
+                {counts.delivered}
+              </p>
+            </div>
+
+            <Truck className="h-5 w-5 text-emerald-600" />
+          </div>
+        </button>
+      </div>
+
+      {/* Orders */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <h2 className="text-base font-black text-[#071a3a]">
+                Order List
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {filteredOrders.length} order
+                {filteredOrders.length === 1 ? "" : "s"} shown
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative min-w-0 sm:w-80">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(event.target.value)
+                  }
+                  placeholder="Search orders or customers..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-[#d4af37] focus:bg-white focus:ring-2 focus:ring-[#d4af37]/20"
+                />
+              </div>
+
+              <select
+                value={filter}
+                onChange={(event) =>
+                  setFilter(
+                    event.target.value as OrderFilter
+                  )
+                }
+                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:border-[#d4af37]"
+              >
+                <option value="all">All Orders</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="processing">
+                  Processing
+                </option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">
+                  Delivered
+                </option>
+                <option value="cancelled">
+                  Cancelled
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {filteredOrders.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <Package className="h-6 w-6" />
+            </div>
+
+            <h3 className="mt-4 text-base font-bold text-[#071a3a]">
+              No orders found
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Orders will appear here when customers place
+              them.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop */}
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full min-w-[980px]">
+                <thead className="bg-slate-50">
+                  <tr className="border-b border-slate-200 text-left">
+                    <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Order
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Customer
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Date
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Total
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Payment
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Status
+                    </th>
+
+                    <th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredOrders.map((order) => (
+                    <tr
+                      key={order.id}
+                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70"
+                    >
+                      <td className="px-5 py-4">
+                        <p className="font-black text-[#071a3a]">
+                          {shortOrderId(order.id)}
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-400">
+                          {order.items.length} item
+                          {order.items.length === 1
+                            ? ""
+                            : "s"}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-[#071a3a]">
+                          {order.customerName || "Customer"}
+                        </p>
+
+                        <p className="mt-1 max-w-[220px] truncate text-xs text-slate-500">
+                          {order.customerEmail ||
+                            order.customerPhone ||
+                            "No contact information"}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-500">
+                        {dateText(order.createdAt)}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm font-black text-[#071a3a]">
+                        {money(order.total)}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${paymentClass(
+                            order.paymentStatus
+                          )}`}
+                        >
+                          {paymentLabel(
+                            order.paymentStatus
+                          )}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${statusClass(
+                            order.status
+                          )}`}
+                        >
+                          {statusLabel(order.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedOrder(order)
+                          }
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-bold text-slate-700 transition hover:border-[#d4af37] hover:text-[#071a3a]"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile */}
+            <div className="divide-y divide-slate-100 lg:hidden">
+              {filteredOrders.map((order) => (
+                <article
+                  key={order.id}
+                  className="p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-black text-[#071a3a]">
+                        {shortOrderId(order.id)}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        {dateText(order.createdAt)}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1.5 text-[10px] font-bold ${statusClass(
+                        order.status
+                      )}`}
+                    >
+                      {statusLabel(order.status)}
+                    </span>
+                  </div>
+
+                  <div className="mt-4">
+                    <p className="font-bold text-[#071a3a]">
+                      {order.customerName || "Customer"}
+                    </p>
+
+                    <p className="mt-1 break-all text-xs text-slate-500">
+                      {order.customerEmail ||
+                        order.customerPhone ||
+                        "No contact information"}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        Total
+                      </p>
+
+                      <p className="mt-1 font-black text-[#071a3a]">
+                        {money(order.total)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        Payment
+                      </p>
+
+                      <p
+                        className={`mt-1 text-sm font-bold ${
+                          paymentLabel(
+                            order.paymentStatus
+                          ).toLowerCase() === "paid"
+                            ? "text-emerald-700"
+                            : "text-amber-700"
+                        }`}
+                      >
+                        {paymentLabel(
+                          order.paymentStatus
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedOrder(order)
+                    }
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#071a3a] px-4 py-3 text-xs font-bold text-[#d4af37]"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Order
+                  </button>
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Order Detail */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-[#071a3a]/50 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+          <div className="max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-3xl sm:rounded-3xl">
+            {/* Modal header */}
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b28b16]">
+                    Order Details
+                  </p>
+
+                  <h2 className="mt-1 text-xl font-black text-[#071a3a]">
+                    {shortOrderId(
+                      selectedOrder.id
+                    )}
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedOrder(null)
+                  }
+                  className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              {/* Status controls */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Order Status
+                    </p>
+
+                    <span
+                      className={`mt-2 inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${statusClass(
+                        selectedOrder.status
+                      )}`}
+                    >
+                      {statusLabel(
+                        selectedOrder.status
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                    <select
+                      value={selectedOrder.status}
+                      onChange={(event) =>
+                        handleStatusChange(
+                          selectedOrder,
+                          event.target.value
+                        )
+                      }
+                      disabled={isPending}
+                      className="appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-4 pr-10 text-sm font-bold text-[#071a3a] outline-none focus:border-[#d4af37] disabled:opacity-60"
+                    >
+                      {STATUS_OPTIONS.map(
+                        (status) => (
+                          <option
+                            key={status}
+                            value={status}
+                          >
+                            {statusLabel(status)}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer + payment */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Customer
+                  </p>
+
+                  <p className="mt-2 text-base font-black text-[#071a3a]">
+                    {selectedOrder.customerName ||
+                      "Customer"}
+                  </p>
+
+                  {selectedOrder.customerEmail && (
+                    <p className="mt-2 break-all text-sm text-slate-500">
+                      {selectedOrder.customerEmail}
+                    </p>
+                  )}
+
+                  {selectedOrder.customerPhone && (
+                    <p className="mt-1 text-sm text-slate-500">
+                      {selectedOrder.customerPhone}
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-[#b28b16]" />
+
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Payment
+                    </p>
+                  </div>
+
+                  <p
+                    className={`mt-2 text-base font-black ${
+                      paymentLabel(
+                        selectedOrder.paymentStatus
+                      ).toLowerCase() === "paid"
+                        ? "text-emerald-700"
+                        : "text-amber-700"
+                    }`}
+                  >
+                    {paymentLabel(
+                      selectedOrder.paymentStatus
+                    )}
+                  </p>
+
+                  {selectedOrder.payment && (
+                    <p className="mt-1 text-sm text-slate-500">
+                      {money(
+                        selectedOrder.payment.amount
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Delivery */}
+              {selectedOrder.shippingAddress && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Delivery Address
+                  </p>
+
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+                    {selectedOrder.shippingAddress}
+                  </p>
+                </div>
+              )}
+
+              {/* Items */}
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 px-5 py-4">
+                  <h3 className="text-sm font-black text-[#071a3a]">
+                    Items Ordered
+                  </h3>
+                </div>
+
+                {selectedOrder.items.length === 0 ? (
+                  <div className="px-5 py-10 text-center text-sm text-slate-500">
+                    No item details are available for
+                    this order yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {selectedOrder.items.map(
+                      (item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start justify-between gap-4 px-5 py-4"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-bold text-[#071a3a]">
+                              {item.name}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              {item.quantity} ×{" "}
+                              {money(
+                                item.unitPrice
+                              )}
+                            </p>
+                          </div>
+
+                          <p className="shrink-0 font-black text-[#071a3a]">
+                            {money(item.total)}
+                          </p>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t border-slate-200 bg-slate-50 px-5 py-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-500">
+                      Total
+                    </span>
+
+                    <span className="text-xl font-black text-[#071a3a]">
+                      {money(selectedOrder.total)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date */}
+              <p className="text-center text-xs text-slate-400">
+                Order placed{" "}
+                {dateText(
+                  selectedOrder.createdAt
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
