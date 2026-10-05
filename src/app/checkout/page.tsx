@@ -46,7 +46,7 @@ export default async function CheckoutPage() {
     <main className="min-h-screen bg-slate-50 text-slate-900">
       {/* Announcement */}
       <div className="bg-[#061a3a] px-4 py-2.5 text-center text-sm font-medium text-white">
-        Nationwide Delivery Available • Shop MUHAJ Multi Biz
+        
       </div>
 
       {/* Header */}

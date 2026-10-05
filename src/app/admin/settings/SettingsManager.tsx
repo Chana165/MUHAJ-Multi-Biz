@@ -25,6 +25,7 @@ import {
   updateStoreSettings,
   type StoreSettings,
 } from "./actions";
+import AdminUsersPanel from "./AdminUsersPanel";
 
 type Props = {
   initialSettings: StoreSettings | null;
@@ -504,16 +505,16 @@ export default function SettingsManager({
                 className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
               >
                 <option value="NGN">
-                  NGN — Nigerian Naira
+                  NGN â€” Nigerian Naira
                 </option>
                 <option value="USD">
-                  USD — US Dollar
+                  USD â€” US Dollar
                 </option>
                 <option value="GBP">
-                  GBP — British Pound
+                  GBP â€” British Pound
                 </option>
                 <option value="EUR">
-                  EUR — Euro
+                  EUR â€” Euro
                 </option>
               </select>
             </div>
@@ -650,6 +651,8 @@ export default function SettingsManager({
           </button>
         </div>
       </form>
+
+      <AdminUsersPanel />
     </div>
   );
 }

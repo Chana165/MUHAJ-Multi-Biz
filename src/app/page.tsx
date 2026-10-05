@@ -220,7 +220,7 @@ export default async function HomePage() {
       ====================================================== */}
 
       <div className="bg-[#071a3a] px-4 py-2 text-center text-xs font-semibold tracking-wide text-white">
-        Nationwide Delivery Available â€¢ Shop MUHAJ Multi Biz
+        
       </div>
 
       {/* ======================================================
@@ -463,7 +463,7 @@ export default async function HomePage() {
             href="/shop"
             className="text-sm font-bold text-[#071a3a] hover:text-[#b28b16]"
           >
-            View All Products â†’
+            View All Products 
           </Link>
         </div>
 
@@ -494,7 +494,7 @@ export default async function HomePage() {
                 </p>
 
                 <span className="mt-5 block text-xs font-bold text-[#b28b16] transition group-hover:translate-x-1">
-                  Shop Category â†’
+                  Shop Category 
                 </span>
               </Link>
             ))}
@@ -530,7 +530,7 @@ export default async function HomePage() {
               href="/shop"
               className="text-sm font-bold text-[#071a3a] hover:text-[#b28b16]"
             >
-              Browse Shop â†’
+              Browse Shop 
             </Link>
           </div>
 
@@ -927,8 +927,13 @@ export default async function HomePage() {
           </div>
 
           <div className="mt-10 border-t border-white/10 pt-6 text-center text-xs text-blue-100/40">
-            Â© {new Date().getFullYear()} {storeName}. All rights reserved.
-          </div>
+  <div>
+    © {new Date().getFullYear()} {storeName}. All rights reserved.
+  </div>
+  <div className="mt-2">
+    Developed by <span className="text-blue-100/60">ChanaByte Technologies</span>
+  </div>
+</div>
         </div>
       </footer>
 

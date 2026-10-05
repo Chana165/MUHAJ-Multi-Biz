@@ -1,136 +1,195 @@
 "use client";
 
 import {
+  CheckCircle2,
+  Clock3,
+  Eye,
+  MessageSquareText,
+  RefreshCw,
+  Search,
+  Star,
+  Trash2,
+  XCircle,
+} from "lucide-react";
+import {
   useMemo,
   useState,
   useTransition,
 } from "react";
 
 import {
-  AlertCircle,
-  CheckCircle2,
-  Eye,
-  Filter,
-  MessageSquare,
-  Search,
-  Star,
-  Trash2,
-  X,
-  XCircle,
-  Clock3,
-} from "lucide-react";
-
-import {
   deleteReview,
   updateReviewStatus,
-  type Review,
+  type AdminReview,
+  type ReviewStatus,
 } from "./actions";
 
 type Props = {
-  initialReviews: Review[];
+  initialReviews: AdminReview[];
   loadError?: string;
 };
 
-const statusOptions = [
-  "all",
-  "pending",
-  "approved",
-  "rejected",
-] as const;
+type StatusFilter = "all" | ReviewStatus;
+
+const statusOptions: Array<{
+  value: StatusFilter;
+  label: string;
+}> = [
+  {
+    value: "all",
+    label: "All Reviews",
+  },
+  {
+    value: "pending",
+    label: "Pending",
+  },
+  {
+    value: "approved",
+    label: "Approved",
+  },
+  {
+    value: "rejected",
+    label: "Rejected",
+  },
+];
 
 const ratingOptions = [
-  "all",
-  "5",
-  "4",
-  "3",
-  "2",
-  "1",
-] as const;
+  {
+    value: "all",
+    label: "All Ratings",
+  },
+  {
+    value: "5",
+    label: "5 Stars",
+  },
+  {
+    value: "4",
+    label: "4 Stars",
+  },
+  {
+    value: "3",
+    label: "3 Stars",
+  },
+  {
+    value: "2",
+    label: "2 Stars",
+  },
+  {
+    value: "1",
+    label: "1 Star",
+  },
+];
 
-type StatusFilter = (typeof statusOptions)[number];
-type RatingFilter = (typeof ratingOptions)[number];
-
-function date(value: string | null) {
-  if (!value) return "—";
-
-  const d = new Date(value);
-
-  if (Number.isNaN(d.getTime())) return "—";
-
-  return new Intl.DateTimeFormat("en-NG", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(d);
-}
-
-function normalize(value: string) {
-  return value.toLowerCase().trim();
-}
-
-function statusLabel(status: string) {
-  const s = normalize(status);
-
-  if (s === "approved") return "Approved";
-  if (s === "rejected") return "Rejected";
-  if (s === "pending") return "Pending";
-
-  return s
-    ? s.charAt(0).toUpperCase() + s.slice(1)
-    : "Pending";
-}
-
-function statusClass(status: string) {
-  switch (normalize(status)) {
-    case "approved":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-
-    case "rejected":
-      return "border-red-200 bg-red-50 text-red-700";
-
-    case "pending":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-
-    default:
-      return "border-slate-200 bg-slate-100 text-slate-700";
+function statusClasses(status: ReviewStatus) {
+  if (status === "approved") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
+
+  if (status === "rejected") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
 function StatusIcon({
   status,
 }: {
-  status: string;
+  status: ReviewStatus;
 }) {
-  switch (normalize(status)) {
-    case "approved":
-      return (
-        <CheckCircle2 className="h-4 w-4" />
-      );
-
-    case "rejected":
-      return <XCircle className="h-4 w-4" />;
-
-    default:
-      return <Clock3 className="h-4 w-4" />;
+  if (status === "approved") {
+    return <CheckCircle2 className="h-4 w-4" />;
   }
+
+  if (status === "rejected") {
+    return <XCircle className="h-4 w-4" />;
+  }
+
+  return <Clock3 className="h-4 w-4" />;
+}
+
+function formatDate(value: string) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 function Stars({
   rating,
+  small = false,
 }: {
   rating: number;
+  small?: boolean;
+}) {
+  const size = small
+    ? "h-4 w-4"
+    : "h-5 w-5";
+
+  return (
+    <div
+      className="flex items-center gap-0.5"
+      aria-label={`${rating} out of 5 stars`}
+    >
+      {Array.from({ length: 5 }).map(
+        (_, index) => (
+          <Star
+            key={index}
+            className={`${size} ${
+              index < rating
+                ? "fill-amber-400 text-amber-400"
+                : "text-slate-300"
+            }`}
+          />
+        )
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  icon,
+  note,
+}: {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  note?: string;
 }) {
   return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <Star
-          key={star}
-          className={`h-4 w-4 ${
-            star <= rating
-              ? "fill-amber-400 text-amber-400"
-              : "text-slate-300"
-          }`}
-        />
-      ))}
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-slate-500">
+            {title}
+          </p>
+
+          <p className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+            {value}
+          </p>
+
+          {note && (
+            <p className="mt-1 text-xs text-slate-400">
+              {note}
+            </p>
+          )}
+        </div>
+
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#061a3a] text-amber-300">
+          {icon}
+        </div>
+      </div>
     </div>
   );
 }
@@ -140,95 +199,92 @@ export default function ReviewsManager({
   loadError,
 }: Props) {
   const [reviews, setReviews] =
-    useState(initialReviews);
+    useState<AdminReview[]>(initialReviews);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] =
     useState<StatusFilter>("all");
   const [ratingFilter, setRatingFilter] =
-    useState<RatingFilter>("all");
+    useState("all");
 
-  const [selected, setSelected] =
-    useState<Review | null>(null);
+  const [selectedReview, setSelectedReview] =
+    useState<AdminReview | null>(null);
 
-  const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
   const [pending, startTransition] =
     useTransition();
 
   const stats = useMemo(() => {
-    const total = reviews.length;
-
     const pendingCount = reviews.filter(
-      (item) =>
-        normalize(item.status) === "pending"
+      (review) => review.status === "pending"
     ).length;
 
-    const approved = reviews.filter(
-      (item) =>
-        normalize(item.status) === "approved"
+    const approvedCount = reviews.filter(
+      (review) => review.status === "approved"
     ).length;
 
-    const fiveStars = reviews.filter(
-      (item) => item.rating === 5
+    const rejectedCount = reviews.filter(
+      (review) => review.status === "rejected"
     ).length;
 
-    const lowRatings = reviews.filter(
-      (item) => item.rating <= 2
-    ).length;
+    const approvedReviews = reviews.filter(
+      (review) => review.status === "approved"
+    );
 
-    const average =
-      total === 0
-        ? 0
-        : reviews.reduce(
-            (sum, item) =>
-              sum + item.rating,
-            0
-          ) / total;
+    const averageRating =
+      approvedReviews.length > 0
+        ? (
+            approvedReviews.reduce(
+              (sum, review) =>
+                sum + review.rating,
+              0
+            ) / approvedReviews.length
+          ).toFixed(1)
+        : "0.0";
 
     return {
-      total,
+      total: reviews.length,
       pending: pendingCount,
-      approved,
-      fiveStars,
-      lowRatings,
-      average,
+      approved: approvedCount,
+      rejected: rejectedCount,
+      averageRating,
     };
   }, [reviews]);
 
-  const filtered = useMemo(() => {
+  const filteredReviews = useMemo(() => {
     const query = search
       .trim()
       .toLowerCase();
 
     return reviews.filter((review) => {
+      const matchesSearch =
+        !query ||
+        review.reviewerName
+          .toLowerCase()
+          .includes(query) ||
+        review.productName
+          .toLowerCase()
+          .includes(query) ||
+        review.comment
+          .toLowerCase()
+          .includes(query);
+
       const matchesStatus =
         statusFilter === "all" ||
-        normalize(review.status) ===
-          statusFilter;
+        review.status === statusFilter;
 
       const matchesRating =
         ratingFilter === "all" ||
-        String(review.rating) ===
-          ratingFilter;
+        review.rating ===
+          Number(ratingFilter);
 
-      if (!matchesStatus || !matchesRating) {
-        return false;
-      }
-
-      if (!query) return true;
-
-      return [
-        review.customerName,
-        review.customerEmail,
-        review.productName,
-        review.title,
-        review.comment,
-        review.status,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesRating
+      );
     });
   }, [
     reviews,
@@ -237,12 +293,16 @@ export default function ReviewsManager({
     ratingFilter,
   ]);
 
-  function changeStatus(
-    review: Review,
-    status: string
-  ) {
-    setError("");
+  function clearFeedback() {
     setMessage("");
+    setError("");
+  }
+
+  function handleStatusChange(
+    review: AdminReview,
+    status: ReviewStatus
+  ) {
+    clearFeedback();
 
     startTransition(async () => {
       const result =
@@ -253,41 +313,48 @@ export default function ReviewsManager({
 
       if (!result.success) {
         setError(
-          result.error ??
-            "Unable to update review."
+          result.error ||
+            "Unable to update the review."
         );
         return;
       }
 
-      setReviews((items) =>
-        items.map((item) =>
+      setReviews((current) =>
+        current.map((item) =>
           item.id === review.id
-            ? { ...item, status }
+            ? {
+                ...item,
+                status,
+              }
             : item
         )
       );
 
-      setSelected((item) =>
-        item?.id === review.id
-          ? { ...item, status }
-          : item
+      setSelectedReview((current) =>
+        current?.id === review.id
+          ? {
+              ...current,
+              status,
+            }
+          : current
       );
 
       setMessage(
-        `Review marked as ${status}.`
+        `Review ${status}.`
       );
     });
   }
 
-  function removeReview(review: Review) {
-    const ok = window.confirm(
-      `Delete this review from ${review.customerName}?`
-    );
+  function handleDelete(review: AdminReview) {
+    clearFeedback();
 
-    if (!ok) return;
-
-    setError("");
-    setMessage("");
+    if (
+      !window.confirm(
+        "Delete this review permanently? This action cannot be undone."
+      )
+    ) {
+      return;
+    }
 
     startTransition(async () => {
       const result =
@@ -295,22 +362,22 @@ export default function ReviewsManager({
 
       if (!result.success) {
         setError(
-          result.error ??
-            "Unable to delete review."
+          result.error ||
+            "Unable to delete the review."
         );
         return;
       }
 
-      setReviews((items) =>
-        items.filter(
+      setReviews((current) =>
+        current.filter(
           (item) => item.id !== review.id
         )
       );
 
-      setSelected((item) =>
-        item?.id === review.id
+      setSelectedReview((current) =>
+        current?.id === review.id
           ? null
-          : item
+          : current
       );
 
       setMessage(
@@ -320,548 +387,555 @@ export default function ReviewsManager({
   }
 
   return (
-    <div className="admin-module-page space-y-6">
-      <div>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-          Review Management
-        </h1>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#b28b16]">
+            Customer Feedback
+          </p>
+
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-[#071a3a] sm:text-4xl">
+            Reviews
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            Review customer feedback, moderate submissions,
+            and approve only the reviews that should appear
+            publicly on the store.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            window.location.reload()
+          }
+          disabled={pending}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-[#071a3a] shadow-sm transition hover:border-[#071a3a] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${
+              pending
+                ? "animate-spin"
+                : ""
+            }`}
+          />
+          Refresh
+        </button>
       </div>
 
-      {(loadError || error || message) ? (
-        <div
-          className={`flex gap-3 rounded-2xl border p-4 text-sm ${
-            loadError || error
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700"
-          }`}
-        >
-          <AlertCircle className="h-5 w-5 shrink-0" />
-
-          <div>
-            <p className="font-semibold">
-              {loadError || error
-                ? "Reviews notice"
-                : "Reviews update"}
-            </p>
-
-            <p className="mt-1">
-              {loadError || error || message}
-            </p>
-          </div>
-
-          {!pending ? (
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setMessage("");
-              }}
-              className="ml-auto text-slate-400 hover:text-slate-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
+      {loadError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm leading-6 text-red-700">
+          <strong>
+            Unable to load reviews:
+          </strong>{" "}
+          {loadError}
         </div>
-      ) : null}
+      )}
+
+      {message && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-800">
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <p className="text-sm font-medium text-slate-500">
-            Total Reviews
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {stats.total}
-          </p>
-        </div>
+        <StatCard
+          title="Total Reviews"
+          value={String(stats.total)}
+          icon={
+            <MessageSquareText className="h-5 w-5" />
+          }
+        />
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <p className="text-sm font-medium text-slate-500">
-            Pending
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {stats.pending}
-          </p>
-        </div>
+        <StatCard
+          title="Pending"
+          value={String(stats.pending)}
+          icon={<Clock3 className="h-5 w-5" />}
+          note="Needs moderation"
+        />
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <p className="text-sm font-medium text-slate-500">
-            Approved
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {stats.approved}
-          </p>
-        </div>
+        <StatCard
+          title="Approved"
+          value={String(stats.approved)}
+          icon={
+            <CheckCircle2 className="h-5 w-5" />
+          }
+        />
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <p className="text-sm font-medium text-slate-500">
-            5-Star Reviews
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {stats.fiveStars}
-          </p>
-        </div>
+        <StatCard
+          title="Rejected"
+          value={String(stats.rejected)}
+          icon={<XCircle className="h-5 w-5" />}
+        />
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <p className="text-sm font-medium text-slate-500">
-            Average Rating
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <p className="text-3xl font-bold text-slate-950">
-              {stats.average.toFixed(1)}
-            </p>
-            <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-          </div>
-        </div>
+        <StatCard
+          title="Average Rating"
+          value={stats.averageRating}
+          icon={<Star className="h-5 w-5" />}
+          note="Approved reviews"
+        />
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-950">
-                Customer Reviews
+                Review List
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                {filtered.length} review
-                {filtered.length === 1
+                {filteredReviews.length} review
+                {filteredReviews.length === 1
                   ? ""
                   : "s"} shown
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative sm:w-[280px]">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <div className="flex flex-col gap-3 md:flex-row">
+              <div className="relative md:min-w-[280px]">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
                 <input
+                  type="search"
                   value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
-                  placeholder="Search reviews..."
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+                  onChange={(event) => {
+                    setSearch(
+                      event.target.value
+                    );
+                    clearFeedback();
+                  }}
+                  placeholder="Search reviewer, product or review"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#071a3a] focus:ring-2 focus:ring-[#071a3a]/10"
                 />
               </div>
 
-              <div className="relative">
-                <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) =>
-                    setStatusFilter(
-                      e.target.value as StatusFilter
-                    )
-                  }
-                  className="h-11 min-w-[150px] appearance-none rounded-xl border border-slate-200 bg-white pl-10 pr-8 text-sm font-medium text-slate-700 outline-none focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
-                >
-                  <option value="all">
-                    All Status
-                  </option>
-                  <option value="pending">
-                    Pending
-                  </option>
-                  <option value="approved">
-                    Approved
-                  </option>
-                  <option value="rejected">
-                    Rejected
-                  </option>
-                </select>
-              </div>
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(
+                    event.target.value as StatusFilter
+                  );
+                  clearFeedback();
+                }}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 outline-none focus:border-[#071a3a] focus:ring-2 focus:ring-[#071a3a]/10"
+              >
+                {statusOptions.map(
+                  (option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  )
+                )}
+              </select>
 
               <select
                 value={ratingFilter}
-                onChange={(e) =>
+                onChange={(event) => {
                   setRatingFilter(
-                    e.target.value as RatingFilter
-                  )
-                }
-                className="h-11 min-w-[140px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-[#061a3a] focus:ring-2 focus:ring-[#061a3a]/10"
+                    event.target.value
+                  );
+                  clearFeedback();
+                }}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 outline-none focus:border-[#071a3a] focus:ring-2 focus:ring-[#071a3a]/10"
               >
-                <option value="all">
-                  All Ratings
-                </option>
-                <option value="5">
-                  5 Stars
-                </option>
-                <option value="4">
-                  4 Stars
-                </option>
-                <option value="3">
-                  3 Stars
-                </option>
-                <option value="2">
-                  2 Stars
-                </option>
-                <option value="1">
-                  1 Star
-                </option>
+                {ratingOptions.map(
+                  (option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  )
+                )}
               </select>
             </div>
           </div>
         </div>
 
-        {filtered.length === 0 ? (
-          <div className="px-5 py-16 text-center sm:px-6">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-              <MessageSquare className="h-6 w-6" />
+        {filteredReviews.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <MessageSquareText className="h-6 w-6" />
             </div>
 
-            <h3 className="mt-4 font-bold text-slate-950">
+            <h3 className="mt-5 text-lg font-bold text-slate-950">
               No reviews found
             </h3>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Customer reviews will appear here after customers
-              submit feedback on products.
+              {reviews.length === 0
+                ? "There are no customer reviews in the store yet."
+                : "Try changing the search or filters."}
             </p>
           </div>
         ) : (
-          <>
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1050px]">
-                <thead className="border-b border-slate-200 bg-slate-50">
-                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <th className="px-6 py-4">
-                      Customer
-                    </th>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1050px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/70">
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Reviewer
+                  </th>
 
-                    <th className="px-4 py-4">
-                      Product
-                    </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Product
+                  </th>
 
-                    <th className="px-4 py-4">
-                      Rating
-                    </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Rating
+                  </th>
 
-                    <th className="px-4 py-4">
-                      Review
-                    </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Review
+                  </th>
 
-                    <th className="px-4 py-4">
-                      Status
-                    </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Status
+                  </th>
 
-                    <th className="px-4 py-4">
-                      Date
-                    </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Date
+                  </th>
 
-                    <th className="px-6 py-4 text-right">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
+                  <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Action
+                  </th>
+                </tr>
+              </thead>
 
-                <tbody className="divide-y divide-slate-100">
-                  {filtered.map((review) => (
+              <tbody className="divide-y divide-slate-100">
+                {filteredReviews.map(
+                  (review) => (
                     <tr
                       key={review.id}
-                      className="hover:bg-slate-50/70"
+                      className="transition hover:bg-slate-50/60"
                     >
-                      <td className="px-6 py-5">
-                        <p className="font-semibold text-slate-900">
-                          {review.customerName}
-                        </p>
-
-                        <p className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
-                          {review.customerEmail}
+                      <td className="px-6 py-5 align-top">
+                        <p className="max-w-[190px] font-bold text-slate-950">
+                          {review.reviewerName}
                         </p>
                       </td>
 
-                      <td className="px-4 py-5">
-                        <p className="max-w-[180px] truncate font-medium text-slate-800">
+                      <td className="px-6 py-5 align-top">
+                        <p className="max-w-[190px] font-semibold text-slate-800">
                           {review.productName}
                         </p>
                       </td>
 
-                      <td className="px-4 py-5">
-                        <div className="flex items-center gap-2">
-                          <Stars rating={review.rating} />
-                          <span className="text-xs font-semibold text-slate-500">
-                            {review.rating}/5
-                          </span>
-                        </div>
-                      </td>
+                      <td className="px-6 py-5 align-top">
+                        <Stars
+                          rating={review.rating}
+                          small
+                        />
 
-                      <td className="px-4 py-5">
-                        <p className="max-w-[220px] truncate font-semibold text-slate-800">
-                          {review.title || "Customer review"}
-                        </p>
-
-                        <p className="mt-1 max-w-[260px] truncate text-xs text-slate-500">
-                          {review.comment || "No comment"}
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          {review.rating}/5
                         </p>
                       </td>
 
-                      <td className="px-4 py-5">
+                      <td className="px-6 py-5 align-top">
+                        <p className="max-w-[300px] text-sm leading-6 text-slate-600">
+                          {review.comment ||
+                            "No written comment."}
+                        </p>
+                      </td>
+
+                      <td className="px-6 py-5 align-top">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusClass(
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold capitalize ${statusClasses(
                             review.status
                           )}`}
                         >
                           <StatusIcon
                             status={review.status}
                           />
-                          {statusLabel(
-                            review.status
-                          )}
+                          {review.status}
                         </span>
                       </td>
 
-                      <td className="px-4 py-5 text-sm text-slate-600">
-                        {date(review.createdAt)}
+                      <td className="px-6 py-5 align-top text-sm font-medium text-slate-500">
+                        {formatDate(
+                          review.createdAt
+                        )}
                       </td>
 
-                      <td className="px-6 py-5 text-right">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelected(review)
-                          }
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View
-                        </button>
+                      <td className="px-6 py-5 align-top">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedReview(
+                                review
+                              )
+                            }
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-[#071a3a] hover:text-[#071a3a]"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </button>
+
+                          {review.status !==
+                            "approved" && (
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() =>
+                                handleStatusChange(
+                                  review,
+                                  "approved"
+                                )
+                              }
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Approve
+                            </button>
+                          )}
+
+                          {review.status !==
+                            "rejected" && (
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() =>
+                                handleStatusChange(
+                                  review,
+                                  "rejected"
+                                )
+                              }
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                              Reject
+                            </button>
+                          )}
+
+                          {review.status !==
+                            "pending" && (
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() =>
+                                handleStatusChange(
+                                  review,
+                                  "pending"
+                                )
+                              }
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Clock3 className="h-3.5 w-3.5" />
+                              Pending
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() =>
+                              handleDelete(review)
+                            }
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="Delete review"
+                            title="Delete review"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="divide-y divide-slate-100 lg:hidden">
-              {filtered.map((review) => (
-                <div
-                  key={review.id}
-                  className="p-5 sm:p-6"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-bold text-slate-950">
-                        {review.customerName}
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        {review.productName}
-                      </p>
-                    </div>
-
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusClass(
-                        review.status
-                      )}`}
-                    >
-                      <StatusIcon
-                        status={review.status}
-                      />
-                      {statusLabel(review.status)}
-                    </span>
-                  </div>
-
-                  <div className="mt-4">
-                    <Stars rating={review.rating} />
-                  </div>
-
-                  <p className="mt-3 font-semibold text-slate-900">
-                    {review.title ||
-                      "Customer review"}
-                  </p>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {review.comment ||
-                      "No comment"}
-                  </p>
-
-                  <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
-                    <span>
-                      {date(review.createdAt)}
-                    </span>
-
-                    <span>
-                      {review.rating}/5
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelected(review)
-                    }
-                    className="mt-5 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <Eye className="h-4 w-4" />
-                    View Review
-                  </button>
-                </div>
-              ))}
-            </div>
-          </>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
-      {selected ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-5 sm:px-6">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.14em] text-amber-700">
-                  Review Details
-                </p>
+      {selectedReview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              setSelectedReview(null);
+            }
+          }}
+        >
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-6 py-5 sm:px-7">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b28b16]">
+                    Review Details
+                  </p>
 
-                <h3 className="mt-1 text-xl font-bold text-slate-950">
-                  {selected.productName}
-                </h3>
+                  <h3 className="mt-2 text-xl font-bold text-slate-950">
+                    Customer Review
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedReview(null)
+                  }
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+                  aria-label="Close review details"
+                >
+                  <XCircle className="h-5 w-5" />
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"
-              >
-                <X className="h-5 w-5" />
-              </button>
             </div>
 
-            <div className="space-y-6 px-5 py-6 sm:px-6">
-              <div className="flex flex-wrap items-center gap-3">
-                <Stars rating={selected.rating} />
+            <div className="space-y-6 px-6 py-6 sm:px-7">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Reviewer
+                  </p>
 
-                <span className="text-sm font-bold text-slate-700">
-                  {selected.rating}/5
-                </span>
+                  <p className="mt-2 font-bold text-slate-950">
+                    {selectedReview.reviewerName}
+                  </p>
+                </div>
 
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusClass(
-                    selected.status
-                  )}`}
-                >
-                  <StatusIcon
-                    status={selected.status}
-                  />
-                  {statusLabel(
-                    selected.status
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Product
+                  </p>
+
+                  <p className="mt-2 font-bold text-slate-950">
+                    {selectedReview.productName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Rating
+                    </p>
+
+                    <div className="mt-2 flex items-center gap-3">
+                      <Stars
+                        rating={
+                          selectedReview.rating
+                        }
+                      />
+
+                      <span className="font-bold text-slate-950">
+                        {selectedReview.rating}/5
+                      </span>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold capitalize ${statusClasses(
+                      selectedReview.status
+                    )}`}
+                  >
+                    <StatusIcon
+                      status={
+                        selectedReview.status
+                      }
+                    />
+                    {selectedReview.status}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Customer Comment
+                </p>
+
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {selectedReview.comment ||
+                      "No written comment was provided."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-sm text-slate-500">
+                Submitted{" "}
+                <span className="font-semibold text-slate-700">
+                  {formatDate(
+                    selectedReview.createdAt
                   )}
                 </span>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                    Customer
-                  </p>
+              <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                {selectedReview.status !==
+                  "approved" && (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      handleStatusChange(
+                        selectedReview,
+                        "approved"
+                      )
+                    }
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Approve Review
+                  </button>
+                )}
 
-                  <p className="mt-2 font-semibold text-slate-900">
-                    {selected.customerName}
-                  </p>
+                {selectedReview.status !==
+                  "rejected" && (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      handleStatusChange(
+                        selectedReview,
+                        "rejected"
+                      )
+                    }
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Reject Review
+                  </button>
+                )}
 
-                  <p className="mt-1 break-all text-sm text-slate-500">
-                    {selected.customerEmail}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                    Product
-                  </p>
-
-                  <p className="mt-2 font-semibold text-slate-900">
-                    {selected.productName}
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    handleDelete(
+                      selectedReview
+                    )
+                  }
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
               </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  Review
-                </p>
-
-                <h4 className="mt-2 text-lg font-bold text-slate-950">
-                  {selected.title ||
-                    "Customer Review"}
-                </h4>
-
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">
-                  {selected.comment ||
-                    "No comment provided."}
-                </p>
-
-                <p className="mt-4 text-xs text-slate-400">
-                  Submitted {date(selected.createdAt)}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-bold text-slate-950">
-                  Moderation
-                </h4>
-
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {[
-                    "pending",
-                    "approved",
-                    "rejected",
-                  ].map((status) => {
-                    const active =
-                      normalize(
-                        selected.status
-                      ) === status;
-
-                    return (
-                      <button
-                        key={status}
-                        type="button"
-                        disabled={
-                          pending || active
-                        }
-                        onClick={() =>
-                          changeStatus(
-                            selected,
-                            status
-                          )
-                        }
-                        className={`flex h-11 items-center justify-center rounded-xl border text-sm font-semibold capitalize ${
-                          active
-                            ? "border-[#061a3a] bg-[#061a3a] text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                        } disabled:cursor-not-allowed disabled:opacity-60`}
-                      >
-                        {status}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-between sm:px-6">
-              <button
-                type="button"
-                onClick={() =>
-                  removeReview(selected)
-                }
-                disabled={pending}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Review
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setSelected(null)
-                }
-                className="h-10 rounded-xl bg-[#061a3a] px-5 text-sm font-semibold text-white hover:bg-[#0a2857]"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
